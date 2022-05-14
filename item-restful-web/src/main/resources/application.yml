@@ -6,3 +6,5 @@ spring:
 pagehelper:
   helper-dialect: mysql
   reasonable: true
+server:
+  port: 8088
