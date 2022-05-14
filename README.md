@@ -149,3 +149,336 @@ jdbc.userId=root
 jdbc.password=123456
 ```
 
+在generatorConfig.xml文件下，做如下配置：
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE generatorConfiguration
+        PUBLIC "-//mybatis.org//DTD MyBatis Generator Configuration 1.0//EN"
+        "http://mybatis.org/dtd/mybatis-generator-config_1_0.dtd">
+
+<generatorConfiguration>
+    <properties resource="generator.properties"/>
+    <context id="MySqlContext" targetRuntime="MyBatis3" defaultModelType="flat">
+        <property name="beginningDelimiter" value="`"/>
+        <property name="endingDelimiter" value="`"/>
+        <property name="javaFileEncoding" value="UTF-8"/>
+        <!-- 为模型生成序列化方法-->
+        <plugin type="org.mybatis.generator.plugins.SerializablePlugin"/>
+        <!-- 为生成的Java模型创建一个toString方法 -->
+        <plugin type="org.mybatis.generator.plugins.ToStringPlugin"/>
+        <!--生成mapper.xml时覆盖原文件-->
+        <plugin type="org.mybatis.generator.plugins.UnmergeableXmlMappersPlugin" />
+        
+        <commentGenerator type="com.web.items.CommentGenerator">
+            <!-- 是否去除自动生成的注释 true：是 ： false:否 -->
+            <property name="suppressAllComments" value="true"/>
+            <property name="suppressDate" value="true"/>
+            <property name="addRemarkComments" value="true"/>
+        </commentGenerator>
+
+        <jdbcConnection driverClass="${jdbc.driverClass}"
+                        connectionURL="${jdbc.connectionURL}"
+                        userId="${jdbc.userId}"
+                        password="${jdbc.password}">
+            <!--解决mysql驱动升级到8.0后不生成指定数据库代码的问题-->
+            <property name="nullCatalogMeansCurrent" value="true" />
+        </jdbcConnection>
+
+        <javaModelGenerator targetPackage="com.web.items.pojo" targetProject="item-restful-web\src\main\java"/>
+
+        <sqlMapGenerator targetPackage="com.web.items.mapper" targetProject="item-restful-web\src\main\resources"/>
+
+        <javaClientGenerator type="XMLMAPPER" targetPackage="com.web.items.mapper"
+                             targetProject="item-restful-web\src\main\java"/>
+        <table tableName="items"/>
+        <!--生成全部表tableName设为%
+        <table tableName="%">
+            <generatedKey column="id" sqlStatement="MySql" identity="true"/>
+        </table>
+        -->
+    </context>
+</generatorConfiguration>
+```
+
+在项目的com.web.items.CommentGenerator下：
+
+```java
+package com.web.items;
+
+import org.mybatis.generator.api.IntrospectedColumn;
+import org.mybatis.generator.api.IntrospectedTable;
+import org.mybatis.generator.api.dom.java.Field;
+import org.mybatis.generator.internal.DefaultCommentGenerator;
+import org.mybatis.generator.internal.util.StringUtility;
+
+import java.util.Properties;
+
+/**
+ * 自定义注释生成器
+ * Created by macro on 2018/4/26.
+ */
+public class CommentGenerator extends DefaultCommentGenerator {
+    private boolean addRemarkComments = false;
+
+    /**
+     * 设置用户配置的参数
+     */
+    @Override
+    public void addConfigurationProperties(Properties properties) {
+        super.addConfigurationProperties(properties);
+        this.addRemarkComments = StringUtility.isTrue(properties.getProperty("addRemarkComments"));
+    }
+
+    /**
+     * 给字段添加注释
+     */
+    @Override
+    public void addFieldComment(Field field, IntrospectedTable introspectedTable,
+                                IntrospectedColumn introspectedColumn) {
+        String remarks = introspectedColumn.getRemarks();
+        //根据参数和备注信息判断是否添加备注信息
+        if (addRemarkComments && StringUtility.stringHasValue(remarks)) {
+            addFieldJavaDoc(field, remarks);
+        }
+    }
+
+    /**
+     * 给model的字段添加注释
+     */
+    private void addFieldJavaDoc(Field field, String remarks) {
+        //文档注释开始
+        field.addJavaDocLine("/**");
+        //获取数据库字段的备注信息
+        String[] remarkLines = remarks.split(System.getProperty("line.separator"));
+        for (String remarkLine : remarkLines) {
+            field.addJavaDocLine(" * " + remarkLine);
+        }
+        addJavadocTag(field, false);
+        field.addJavaDocLine(" */");
+    }
+
+}
+```
+
+在项目的com.web.items.Generator下（直接运行该main文件，生成pojo和mapper包下的文件）：
+
+```java
+package com.web.items;
+
+import org.mybatis.generator.api.MyBatisGenerator;
+import org.mybatis.generator.config.Configuration;
+import org.mybatis.generator.config.xml.ConfigurationParser;
+import org.mybatis.generator.internal.DefaultShellCallback;
+
+import java.io.InputStream;
+import java.util.ArrayList;
+import java.util.List;
+
+/**
+ * 用于生产MBG的代码
+ * Created by macro on 2018/4/26.
+ */
+public class Generator {
+    public static void main(String[] args) throws Exception {
+        //MBG 执行过程中的警告信息
+        List<String> warnings = new ArrayList<String>();
+        //当生成的代码重复时，覆盖原代码
+        boolean overwrite = true;
+        //读取我们的 MBG 配置文件
+        InputStream is = Generator.class.getResourceAsStream("/generatorConfig.xml");
+        ConfigurationParser cp = new ConfigurationParser(warnings);
+        Configuration config = cp.parseConfiguration(is);
+        is.close();
+
+        DefaultShellCallback callback = new DefaultShellCallback(overwrite);
+        //创建 MBG
+        MyBatisGenerator myBatisGenerator = new MyBatisGenerator(config, callback, warnings);
+        //执行生成代码
+        myBatisGenerator.generate(null);
+        //输出警告信息
+        for (String warning : warnings) {
+            System.out.println(warning);
+        }
+    }
+}
+```
+
+新建com.web.items.service.ItemsService接口：
+
+```java
+package com.web.items.service;
+
+import com.web.items.pojo.Items;
+
+import java.util.List;
+
+public interface ItemsService {
+
+    public List<Items> findAll();
+
+    public Items findOne(int id);
+
+    public void addItems(Items items);
+
+    public void updateItems(Items items);
+
+    public void deleteItems(int id);
+}
+```
+
+com.web.items.service.impl.ItemsServiceImpl实现该接口：
+
+```java
+package com.web.items.service.impl;
+
+import com.web.items.mapper.ItemsMapper;
+import com.web.items.pojo.Items;
+import com.web.items.service.ItemsService;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+
+import java.util.List;
+
+@Service
+public class ItemsServiceImpl implements ItemsService {
+
+    @Autowired
+    private ItemsMapper itemsMapper;
+
+    @Override
+    public List<Items> findAll() {
+        return itemsMapper.selectByExample(null);
+    }
+
+    @Override
+    public Items findOne(int id) {
+        return itemsMapper.selectByPrimaryKey(id);
+    }
+
+    @Override
+    public void addItems(Items items) {
+        itemsMapper.insert(items);
+    }
+
+    @Override
+    public void updateItems(Items items) {
+        itemsMapper.updateByPrimaryKey(items);
+    }
+
+    @Override
+    public void deleteItems(int id) {
+        itemsMapper.deleteByPrimaryKey(id);
+    }
+}
+```
+
+新建com.web.items.controller.ItemsController类：
+
+```java
+package com.web.items.controller;
+
+import com.web.items.pojo.Items;
+import com.web.items.pojo.RespBean;
+import com.web.items.service.ItemsService;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
+
+// @RestController 包含了 @ResponseBody 和 @Controller 注解
+// @ResponseBody 把 Java 类型的数据转换成 json 类型数据
+@RestController
+public class ItemsController {
+
+    @Autowired
+    private ItemsService itemsService;
+
+    @GetMapping("findAll")
+    public List<Items> findAll() {
+        return itemsService.findAll();
+    }
+
+    @GetMapping("/findOne/{id}")
+    public Items findOne(@PathVariable int id) {
+        return itemsService.findOne(id);
+    }
+
+    // @RequestBody 把 json 格式转换成 Java 对象
+    @PostMapping("/addItems")
+    public RespBean addItems(@RequestBody Items items) {
+        System.out.println(items.getName());
+        System.out.println(items.getDetail());
+        try {
+            // id会回填到items对象中
+            itemsService.addItems(items);
+            return RespBean.ok("添加成功",items);
+        } catch (Exception e) {
+            e.printStackTrace();
+            return RespBean.err("添加失败");
+        }
+    }
+
+    @PutMapping("/updateItems")
+    public RespBean updateItems(@RequestBody Items items) {
+        System.out.println(items.getName());
+        System.out.println(items.getDetail());
+        try {
+            // id会回填到items对象中
+            itemsService.updateItems(items);
+            return RespBean.ok("修改成功",items);
+        } catch (Exception e) {
+            e.printStackTrace();
+            return RespBean.err("修改失败");
+        }
+    }
+    @DeleteMapping("/deleteItems/{id}")
+    public RespBean deleteItems(@PathVariable int id) {
+        try {
+            // id会回填到items对象中
+            itemsService.deleteItems(id);
+            return RespBean.ok("删除成功");
+        } catch (Exception e) {
+            e.printStackTrace();
+            return RespBean.err("删除失败");
+        }
+    }
+    
+}
+```
+
+新建com.web.items.ItemsWebApp类：
+
+```java
+package com.web.items;
+
+import org.mybatis.spring.annotation.MapperScan;
+import org.springframework.boot.SpringApplication;
+import org.springframework.boot.autoconfigure.SpringBootApplication;
+
+/*
+ * springboot启动类
+ */
+@SpringBootApplication
+@MapperScan("com.web.items.mapper")
+public class ItemsWebApp {
+    public static void main(String[] args) {
+        SpringApplication.run(ItemsWebApp.class,args);
+    }
+}
+```
+
+在src/main/resources/下新建application.yml文件：
+
+```yml
+spring:
+  datasource:
+    url: jdbc:mysql://localhost:3306/mybatisdb?useUnicode=true&characterEncoding=utf-8&serverTimezone=Asia/Shanghai
+    username: root
+    password: 123456
+pagehelper:
+  helper-dialect: mysql
+  reasonable: true
+```
+
+点击运行即可！
