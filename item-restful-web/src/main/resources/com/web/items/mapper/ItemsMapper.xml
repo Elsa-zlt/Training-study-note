@@ -107,6 +107,9 @@
     values (#{id,jdbcType=INTEGER}, #{name,jdbcType=VARCHAR}, #{price,jdbcType=INTEGER}, 
       #{pic,jdbcType=VARCHAR}, #{createtime,jdbcType=DATE}, #{detail,jdbcType=VARCHAR}
       )
+      <selectKey keyProperty="id" resultType="int" order="AFTER">
+        SELECT LAST_INSERT_ID()
+      </selectKey>
   </insert>
   <insert id="insertSelective" parameterType="com.web.items.pojo.Items">
     insert into items
