@@ -482,3 +482,245 @@ pagehelper:
 ```
 
 点击运行即可！
+
+新建item-restful-client模块：
+
+新建com.web.items.ItemsClientApp启动类：
+
+```java
+package com.web.items;
+
+import org.springframework.boot.SpringApplication;
+import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.context.annotation.Bean;
+import org.springframework.web.client.RestTemplate;
+
+@SpringBootApplication
+public class ItemsClientApp {
+
+    public static void main(String[] args) {
+        SpringApplication.run(ItemsClientApp.class, args);
+    }
+
+    @Bean
+    public RestTemplate restTemplate() {
+        return new RestTemplate();
+    }
+}
+```
+
+新建com.web.items.controller.ItemsWebController类：
+
+```java
+package com.web.items.controller;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Controller;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.client.RestTemplate;
+import org.springframework.web.servlet.ModelAndView;
+
+import java.util.List;
+
+@Controller
+public class ItemsWebController {
+
+    @Autowired
+    private RestTemplate restTemplate;
+
+    public String baseURL = "http://localhost:8088/";
+
+    @GetMapping("queryItems")
+    public ModelAndView queryItems() {
+        // 泛型： LinkedHashMap
+        List list = restTemplate.getForObject(baseURL + "findAll", List.class);
+        System.out.println(list);
+
+        ModelAndView mv = new ModelAndView();
+        mv.addObject("itemList",list);
+        mv.setViewName("index");
+        return mv;
+    }
+
+}
+```
+
+新建src/main/resources/templates/index.html：
+
+```html
+<!DOCTYPE html>
+<html  xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>商品列表</title>
+</head>
+<body>
+
+<table width="70%" border="1px">
+    <tr th:each="item:${itemList}">
+
+        <td th:text="${item.id}"></td>
+        <td th:text="${item.name}"></td>
+        <td th:text="${item.price}"></td>
+        <td th:text="${item.pic}"></td>
+        <td th:text="${item.createtime}"></td>
+        <td th:text="${item.detail}"></td>
+
+    </tr>
+</table>
+
+</body>
+</html>
+```
+
+修改application.yml文件：
+
+```yml
+spring:
+  datasource:
+    url: jdbc:mysql://localhost:3306/mybatisdb?useUnicode=true&characterEncoding=utf-8&serverTimezone=Asia/Shanghai
+    username: root
+    password: 123456
+pagehelper:
+  helper-dialect: mysql
+  reasonable: true
+server:
+  port: 8088
+```
+
+点击运行即可！
+
+**Swagger**
+
+在item-restful-web中新建com.web.items.config.Swagger2Config类
+
+```java
+package com.web.items.config;
+
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import springfox.documentation.builders.ApiInfoBuilder;
+import springfox.documentation.builders.PathSelectors;
+import springfox.documentation.builders.RequestHandlerSelectors;
+import springfox.documentation.service.ApiInfo;
+import springfox.documentation.spi.DocumentationType;
+import springfox.documentation.spring.web.plugins.Docket;
+import springfox.documentation.swagger2.annotations.EnableSwagger2;
+
+/**
+ * Swagger2API文档的配置
+ */
+@Configuration
+@EnableSwagger2 // 核心
+public class Swagger2Config {
+    @Bean
+    public Docket createRestApi(){
+        return new Docket(DocumentationType.SWAGGER_2)
+                .apiInfo(apiInfo())
+                .select()
+                //为当前包下controller生成API文档
+                .apis(RequestHandlerSelectors.basePackage("com.web.items.controller"))
+                //为有@Api注解的Controller生成API文档
+//                .apis(RequestHandlerSelectors.withClassAnnotation(Api.class))
+                //为有@ApiOperation注解的方法生成API文档
+//                .apis(RequestHandlerSelectors.withMethodAnnotation(ApiOperation.class))
+                .paths(PathSelectors.any())
+                .build();
+    }
+
+    private ApiInfo apiInfo() {
+        return new ApiInfoBuilder()
+                .title("SwaggerUI演示")
+                .description("产品微服务后台")
+                .contact("钟良堂")
+                .version("1.0")
+                .build();
+    }
+}
+```
+
+修改com.web.items.controller.ItemsController
+
+```java
+package com.web.items.controller;
+
+import com.web.items.pojo.Items;
+import com.web.items.pojo.RespBean;
+import com.web.items.service.ItemsService;
+import io.swagger.annotations.Api;
+import io.swagger.annotations.ApiOperation;
+import io.swagger.annotations.ApiParam;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
+
+// @RestController 包含了 @ResponseBody 和 @Controller 注解
+// @ResponseBody 把 Java 类型的数据转换成 json 类型数据
+@RestController
+@Api(tags = "ItemsController", description = "产品后台微服务")
+public class ItemsController {
+
+    @Autowired
+    private ItemsService itemsService;
+
+    @ApiOperation("查询所有商品信息")
+    @GetMapping("findAll")
+    public List<Items> findAll() {
+        return itemsService.findAll();
+    }
+
+    @ApiOperation("根据唯一id查询商品信息")
+    @GetMapping("/findOne/{id}")
+    public Items findOne(@ApiParam("要查找的商品id") @PathVariable int id) {
+        return itemsService.findOne(id);
+    }
+
+    @ApiOperation("添加商品信息")
+    // @RequestBody 把 json 格式转换成 Java 对象
+    @PostMapping("/addItems")
+    public RespBean addItems(@ApiParam("要添加的商品对象") @RequestBody Items items) {
+        System.out.println(items.getName());
+        System.out.println(items.getDetail());
+        try {
+            // id会回填到items对象中
+            itemsService.addItems(items);
+            return RespBean.ok("添加成功",items);
+        } catch (Exception e) {
+            e.printStackTrace();
+            return RespBean.err("添加失败");
+        }
+    }
+
+    @ApiOperation("根据唯一id更新商品信息")
+    @PutMapping("/updateItems")
+    public RespBean updateItems(@ApiParam("要更新的商品对象") @RequestBody Items items) {
+        System.out.println(items.getName());
+        System.out.println(items.getDetail());
+        try {
+            // id会回填到items对象中
+            itemsService.updateItems(items);
+            return RespBean.ok("修改成功",items);
+        } catch (Exception e) {
+            e.printStackTrace();
+            return RespBean.err("修改失败");
+        }
+    }
+
+    @ApiOperation("根据唯一id删除商品信息")
+    @DeleteMapping("/deleteItems/{id}")
+    public RespBean deleteItems(@ApiParam("要删除的商品id") @PathVariable int id) {
+        try {
+            // id会回填到items对象中
+            itemsService.deleteItems(id);
+            return RespBean.ok("删除成功");
+        } catch (Exception e) {
+            e.printStackTrace();
+            return RespBean.err("删除失败");
+        }
+    }
+
+}
+```
+
