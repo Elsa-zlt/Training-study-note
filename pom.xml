@@ -11,6 +11,7 @@
     <modules>
         <module>item-restful-web</module>
         <module>item-restful-client</module>
+        <module>springcloud-eureka</module>
     </modules>
 
     <properties>

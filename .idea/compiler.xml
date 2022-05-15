@@ -7,6 +7,7 @@
         <sourceTestOutputDir name="target/generated-test-sources/test-annotations" />
         <outputRelativeToContentRoot value="true" />
         <module name="item-restful-web" />
+        <module name="springcloud-eureka" />
         <module name="item-restful-client" />
       </profile>
     </annotationProcessing>
@@ -15,6 +16,7 @@
     <option name="ADDITIONAL_OPTIONS_OVERRIDE">
       <module name="item-restful-client" options="-parameters" />
       <module name="item-restful-web" options="-parameters" />
+      <module name="springcloud-eureka" options="-parameters" />
     </option>
   </component>
 </project>
